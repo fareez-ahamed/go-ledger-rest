@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -47,13 +48,20 @@ func NewParser(reader io.Reader) *Parser {
 func (p *Parser) Parse() ([]any, error) {
 	scanner := bufio.NewScanner(p.reader)
 	scanner.Split(bufio.ScanLines)
+	lineNumber := 0
+	tokens := make([]any, 0)
 
 	for scanner.Scan() {
-		// line := strings.TrimRight(scanner.Text(), " \n")
-
+		lineNumber++
+		line := strings.TrimRight(scanner.Text(), " \n")
+		result, err := parseLine(line, lineNumber)
+		if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, result)
 	}
 
-	return nil, nil
+	return tokens, nil
 }
 
 func parseLine(line string, lineNumber int) (any, error) {
@@ -65,9 +73,9 @@ func parseLine(line string, lineNumber int) (any, error) {
 		return result, nil
 	}
 
-	// if result, err := parseTransactionDetailLine(line); err == nil {
-	// 	return result, nil
-	// }
+	if result, err := parseTransactionDetailLine(line); err == nil {
+		return result, nil
+	}
 
 	return nil, fmt.Errorf("invalid line: %s at line number %d", line, lineNumber)
 }
@@ -90,12 +98,25 @@ func parseTransactionHeaderLine(line string) (*TransactionHeaderLine, error) {
 	}, nil
 }
 
-// // parses the line `  Assets:Cash in Bank  1000.00` and returns a TransactionDetailLine
-// func parseTransactionDetailLine(line string) (*TransactionDetailLine, error) {
-// 	regex := regexp.MustCompile(`^\s+(\w+)\s{2,}(\d+\.\d{2})?$`)
-// 	matches := regex.FindStringSubmatch(line)
+// parses the line `  Assets:Cash in Bank  1000.00` and returns a TransactionDetailLine
+func parseTransactionDetailLine(line string) (*TransactionDetailLine, error) {
+	regex := regexp.MustCompile(`^\s+(\w+[:\w]*(?:\s\w+[:\w]*)*)\s{2,}([-+]?\d*\.?\d+)$`)
+	matches := regex.FindStringSubmatch(line)
 
-// 	if len(matches) != 3 {
-// 		return nil, fmt.Errorf("invalid transaction detail line: %s", line)
-// 	}
-// }
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("invalid transaction detail line: %s", line)
+	}
+
+	account := matches[1]
+	amount := matches[2]
+
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid transaction detail line: %s", line)
+	}
+
+	return &TransactionDetailLine{
+		Account: account,
+		Amount:  amountFloat,
+	}, nil
+}
