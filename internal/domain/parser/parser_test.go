@@ -124,6 +124,68 @@ func TestParseTransactionDetailLine(t *testing.T) {
 	}
 }
 
+func TestParseTransactionDetailLine_NegativeAmounts(t *testing.T) {
+	tests := []struct {
+		name     string
+		line     string
+		account  string
+		amount   float64
+		wantErr  bool
+	}{
+		{
+			name:    "negative with two decimal places",
+			line:    "  Equity:Opening Balances    -1000.00",
+			account: "Equity:Opening Balances",
+			amount:  -1000.00,
+		},
+		{
+			name:    "negative integer without decimals",
+			line:    "  Assets:Cash    -1000",
+			account: "Assets:Cash",
+			amount:  -1000,
+		},
+		{
+			name:    "small negative fraction",
+			line:    "  Expenses:Fees    -0.50",
+			account: "Expenses:Fees",
+			amount:  -0.50,
+		},
+		{
+			name:    "tab-indented negative amount",
+			line:    "\tAssets:Cash    -500.00",
+			account: "Assets:Cash",
+			amount:  -500.00,
+		},
+		{
+			name:    "negative amount with account name containing spaces",
+			line:    "  Assets:Cash in Bank    -250.75",
+			account: "Assets:Cash in Bank",
+			amount:  -250.75,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := parseTransactionDetailLine(test.line)
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if result.Account != test.account {
+				t.Errorf("expected account %q, got %q", test.account, result.Account)
+			}
+			if result.Amount != test.amount {
+				t.Errorf("expected amount %f, got %f", test.amount, result.Amount)
+			}
+		})
+	}
+}
+
 func TestParseLine(t *testing.T) {
 	tests := []struct {
 		line          string
@@ -155,6 +217,14 @@ func TestParseLine(t *testing.T) {
 			expected: &TransactionDetailLine{
 				Account: "Assets:Cash",
 				Amount:  1000.00,
+			},
+		},
+		{
+			line:       "  Assets:Cash    -1000.00",
+			lineNumber: 6,
+			expected: &TransactionDetailLine{
+				Account: "Assets:Cash",
+				Amount:  -1000.00,
 			},
 		},
 		{
