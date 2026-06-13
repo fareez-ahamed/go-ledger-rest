@@ -69,7 +69,7 @@ func (p *Parser) ParseTransactions() ([]*Transaction, error) {
 		return nil, err
 	}
 
-	stack := make([]any, 0)
+	var currentHeader *TransactionHeaderLine
 	transactions := make([]*Transaction, 0)
 
 	var currentTransaction *Transaction
@@ -82,10 +82,9 @@ func (p *Parser) ParseTransactions() ([]*Transaction, error) {
 				Description: token.Description,
 				Lines:       make([]TransactionLine, 0),
 			}
-			stack = append(stack, token)
+			currentHeader = token
 		case *TransactionDetailLine:
-			peek := stack[len(stack)-1]
-			if _, ok := peek.(*TransactionHeaderLine); !ok {
+			if currentHeader == nil {
 				return nil, fmt.Errorf("invalid transaction detail line: %v", token)
 			}
 			currentTransaction.Lines = append(currentTransaction.Lines, TransactionLine{
@@ -93,11 +92,10 @@ func (p *Parser) ParseTransactions() ([]*Transaction, error) {
 				Amount:  token.Amount,
 			})
 		case *EmptyLine:
-			peek := stack[len(stack)-1]
-			if _, ok := peek.(*TransactionHeaderLine); ok {
+			if currentHeader != nil {
 				transactions = append(transactions, currentTransaction)
 				currentTransaction = nil
-				stack = stack[:len(stack)-1]
+				currentHeader = nil
 			}
 		}
 	}
